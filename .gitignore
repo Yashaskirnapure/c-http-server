@@ -1,0 +1,42 @@
+# Compiled object files
+*.o
+*.obj
+
+# Compiled static and shared libraries
+*.a
+*.so
+*.so.*
+*.dll
+*.dylib
+
+# Executables
+*.out
+*.exe
+*.elf
+
+# Debugging / profiling
+*.gch
+*.pch
+*.gcda
+*.gcno
+*.gcov
+*.prof
+*.stackdump
+
+# Build directories
+/build/
+/bin/
+/lib/
+
+# Logs
+*.log
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*~
