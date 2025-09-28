@@ -4,12 +4,6 @@
 #include <sys/types.h>
 #include "common.h"
 
-#define MAX_HEADERS 50
-#define MAX_HEADER_NAME_LEN 256
-#define MAX_HEADER_VALUE_LEN 1024
-#define INITIAL_BUFFER_SIZE 4096
-#define MAX_REQUEST_SIZE 65536
-
 typedef enum {
     PARSE_REQUEST_LINE,
     PARSE_HEADERS,
@@ -17,23 +11,6 @@ typedef enum {
     PARSE_COMPLETE,
     PARSE_ERROR
 } parser_state_t;
-
-typedef struct {
-    char name[MAX_HEADER_NAME_LEN];
-    char value[MAX_HEADER_VALUE_LEN];
-} http_header_t;
-
-typedef struct {
-    char method[16];
-    char path[MAX_PATH_LENGTH];
-    char version[16];
-    http_header_t headers[MAX_HEADERS];
-    int header_count;
-    char* body;
-    size_t body_length;
-    size_t content_length;
-    int valid;
-} http_request_t;
 
 typedef struct {
 	parser_state_t state;

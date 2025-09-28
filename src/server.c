@@ -1,5 +1,116 @@
 #include "server.h"
 
+void handle_static_file(int client_socket, const char* path){
+    char file_path[MAX_PATH_LENGTH];
+    const char* resolved_path = path;
+
+    if (strcmp(path, "/") == 0 || strcmp(path, "") == 0) {
+        resolved_path = "/index.html";
+    }
+
+    if(strstr(resolved_path, "..")){
+        send_response(client_socket, HTTP_403_FORBIDDEN, "text/html");
+        return;
+    }
+
+    snprintf(file_path, sizeof(file_path), "%s%s", STATIC_DIR, resolved_path);
+
+    int fd = open(file_path, O_RDONLY);
+    if(fd < 0){
+        send_response(client_socket, HTTP_404_NOT_FOUND, "text/html");
+        return;
+    }
+
+    struct stat st;
+    if(fstat(fd, &st) < 0){
+        close(fd);
+        send_response(client_socket, HTTP_500_INTERNAL_ERROR, "text/html");
+        return;
+    }
+
+    char header[MAX_BUFFER_SIZE];
+    int header_len = snprintf(header, sizeof(header),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Length: %zu\r\n"
+        "Content-Type: text/html\r\n"
+        "Connection: close\r\n"
+        "\r\n",
+        (size_t)st.st_size
+    );
+    send(client_socket, header, header_len, 0);
+
+    char buffer[4096];
+    ssize_t n;
+    while((n = read(fd, buffer, sizeof(buffer))) > 0){
+        send(client_socket, buffer, n, 0);
+    }
+
+    close(fd);
+}
+
+const char* get_html_file_for_status(const char* status) {
+    int code;
+
+    if (strcmp(status, HTTP_400_BAD_REQUEST) == 0) code = 400;
+    else if (strcmp(status, HTTP_403_FORBIDDEN) == 0) code = 403;
+    else if (strcmp(status, HTTP_404_NOT_FOUND) == 0) code = 404;
+    else code = 500;
+
+    switch (code) {	
+        case 400: return "response/400.html";
+        case 403: return "response/403.html";
+        case 404: return "response/404.html";
+        case 500:
+        default:  return "response/500.html";
+    }
+}
+
+void send_response(int client_socket, const char* status, const char* content_type) {
+    char file_path[MAX_PATH_LENGTH];
+    snprintf(file_path, sizeof(file_path), "%s/%s", STATIC_DIR, get_html_file_for_status(status));
+
+	printf(file_path);
+    int fd = open(file_path, O_RDONLY);
+    if (fd < 0) {
+        const char* body = "<h1>500 Internal Server Error</h1>";
+        char header[MAX_BUFFER_SIZE];
+        int header_len = snprintf(header, sizeof(header),
+                                  "HTTP/1.1 500 Internal Server Error\r\n"
+                                  "Content-Type: text/html\r\n"
+                                  "Content-Length: %zu\r\n"
+                                  "Connection: close\r\n"
+                                  "\r\n",
+                                  strlen(body));
+        send(client_socket, header, header_len, 0);
+        send(client_socket, body, strlen(body), 0);
+        return;
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        close(fd);
+        return;
+    }
+
+    char header[MAX_BUFFER_SIZE];
+    int header_len = snprintf(header, sizeof(header),
+                              "%s"
+                              "Content-Type: %s\r\n"
+                              "Content-Length: %zu\r\n"
+                              "Connection: close\r\n"
+                              "\r\n",
+                              status, content_type, (size_t)st.st_size);
+    send(client_socket, header, header_len, 0);
+
+    char buffer[4096];
+    ssize_t n;
+    while ((n = read(fd, buffer, sizeof(buffer))) > 0) {
+        send(client_socket, buffer, n, 0);
+    }
+
+    close(fd);
+}
+
 void handle_client(int client_socket) {
     http_parser_t* parser = parser_create();
 	char buffer[MAX_BUFFER_SIZE];
@@ -11,6 +122,11 @@ void handle_client(int client_socket) {
 		int result = parser_feed(parser, buffer, bytes);
 		if(result == PARSE_SUCCESS){
 			printf("Parsed: %s %s %s\n", parser->request.method, parser->request.path, parser->request.version);
+			if(strcmp(parser->request.method, "GET") == 0){
+				handle_static_file(client_socket, parser->request.path);
+			}else{
+				send_response(client_socket, HTTP_400_BAD_REQUEST, "text/html");
+			}
 			break;
 		}else if(result == PARSE_ERROR){
 			printf("Parse error: %s\n", parser->error_msg);

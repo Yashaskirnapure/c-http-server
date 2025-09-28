@@ -63,7 +63,7 @@ int parser_feed(http_parser_t* parser, const char* data, size_t len){
             snprintf(parser->error_msg, sizeof(parser->error_msg), "Memory allocation failed");
             parser->state = PARSE_ERROR;
             return PARSE_ERROR;
-        }
+        }	
 
 		parser->buffer = new_buffer;
 		parser->buffer_size = new_sz;
