@@ -12,7 +12,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#define STATIC_DIR "../static"
+#define STATIC_DIR "static"
 #define DEFAULT_PORT 8080
 #define MAX_BUFFER_SIZE 4096
 #define MAX_PATH_LENGTH 1024

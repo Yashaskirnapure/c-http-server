@@ -69,10 +69,11 @@ void send_response(int client_socket, const char* status, const char* content_ty
     char file_path[MAX_PATH_LENGTH];
     snprintf(file_path, sizeof(file_path), "%s/%s", STATIC_DIR, get_html_file_for_status(status));
 
-	printf(file_path);
+    printf(file_path);
     int fd = open(file_path, O_RDONLY);
     if (fd < 0) {
         const char* body = "<h1>500 Internal Server Error</h1>";
+
         char header[MAX_BUFFER_SIZE];
         int header_len = snprintf(header, sizeof(header),
                                   "HTTP/1.1 500 Internal Server Error\r\n"
@@ -83,6 +84,7 @@ void send_response(int client_socket, const char* status, const char* content_ty
                                   strlen(body));
         send(client_socket, header, header_len, 0);
         send(client_socket, body, strlen(body), 0);
+        printf("Could not open file.");
         return;
     }
 
