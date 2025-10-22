@@ -1,4 +1,5 @@
 #include "server.h"
+#include <pthread.h>
 
 void handle_static_file(int client_socket, const char* path){
     char file_path[MAX_PATH_LENGTH];
@@ -113,7 +114,10 @@ void send_response(int client_socket, const char* status, const char* content_ty
     close(fd);
 }
 
-void handle_client(int client_socket) {
+void* handle_client(void* socket) {
+    int client_socket = *(int*)socket;
+    free(socket);
+
     http_parser_t* parser = parser_create();
 	char buffer[MAX_BUFFER_SIZE];
 
@@ -137,6 +141,10 @@ void handle_client(int client_socket) {
 	}
 
 	parser_destroy(parser);
+    close(client_socket);
+    printf("Connection closed for %d\n", client_socket);
+
+    return NULL;
 }
 
 int start_server(int port){
@@ -185,12 +193,14 @@ int start_server(int port){
 
 		char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
-        printf("New connection from %s:%d\n", client_ip, ntohs(client_addr.sin_port));
+        printf("New connection from %s:%d on %d\n", client_ip, ntohs(client_addr.sin_port), client_socket);
 
-		handle_client(client_socket);
+        int* socket = (int*)malloc(sizeof(int));
+        *socket = client_socket;
 
-		close(client_socket);
-		printf("Connection closed for %s:%d\n", client_ip, ntohs(client_addr.sin_port));
+        pthread_t thread;
+        pthread_create(&thread, NULL, handle_client, socket);
+        pthread_detach(thread);
 	}
 
 	close(server_socket);
