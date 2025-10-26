@@ -1,5 +1,20 @@
 #include "server.h"
 #include <pthread.h>
+#include <signal.h>
+#include <stdatomic.h>
+
+volatile sig_atomic_t stop_server = 0;
+int server_socket = -1;
+
+void handle_sigint(int sig){
+    (void)sig;
+    stop_server = 1;
+    if(server_socket >= 0){
+        close(server_socket);
+        server_socket = -1;
+    }
+    printf("\nServer shutting down...\n");
+}
 
 void handle_static_file(int client_socket, const char* path){
     char file_path[MAX_PATH_LENGTH];
@@ -43,7 +58,19 @@ void handle_static_file(int client_socket, const char* path){
     char buffer[4096];
     ssize_t n;
     while((n = read(fd, buffer, sizeof(buffer))) > 0){
-        send(client_socket, buffer, n, 0);
+        ssize_t total_sent = 0;
+        while(total_sent < n){
+            ssize_t sent = send(client_socket, buffer, n, 0);
+            if(sent <= 0){
+                if(sent == 0) break;
+                else if(errno == EPIPE || errno == ECONNRESET) break;
+                else{
+                    perror("send error");
+                    break;
+                }
+            }
+            total_sent += sent;
+        }
     }
 
     close(fd);
@@ -70,7 +97,6 @@ void send_response(int client_socket, const char* status, const char* content_ty
     char file_path[MAX_PATH_LENGTH];
     snprintf(file_path, sizeof(file_path), "%s/%s", STATIC_DIR, get_html_file_for_status(status));
 
-    printf(file_path);
     int fd = open(file_path, O_RDONLY);
     if (fd < 0) {
         const char* body = "<h1>500 Internal Server Error</h1>";
@@ -84,7 +110,21 @@ void send_response(int client_socket, const char* status, const char* content_ty
                                   "\r\n",
                                   strlen(body));
         send(client_socket, header, header_len, 0);
-        send(client_socket, body, strlen(body), 0);
+
+        ssize_t total_sent = 0;
+        while(total_sent < strlen(body)){
+            ssize_t sent = send(client_socket, body, strlen(body), 0);
+            if(sent <= 0){
+                if(sent == 0) break;
+                else if(errno == EPIPE || errno == ECONNRESET) break;
+                else{
+                    perror("send error");
+                    break;
+                }
+            }
+            total_sent += sent;
+        }
+        
         printf("Could not open file.");
         return;
     }
@@ -108,7 +148,19 @@ void send_response(int client_socket, const char* status, const char* content_ty
     char buffer[4096];
     ssize_t n;
     while ((n = read(fd, buffer, sizeof(buffer))) > 0) {
-        send(client_socket, buffer, n, 0);
+        ssize_t total_sent = 0;
+        while(total_sent < n){
+            ssize_t sent = send(client_socket, buffer+total_sent, n-total_sent, 0);
+            if(sent <= 0){
+                if(sent == 0) break;
+                else if(errno == EPIPE || errno == ECONNRESET) break;
+                else{
+                    perror("send failed");
+                    break;
+                }
+            }
+            total_sent += sent;
+        }
     }
 
     close(fd);
@@ -148,7 +200,6 @@ void* handle_client(void* socket) {
 }
 
 int start_server(int port){
-	int server_socket;
 	struct sockaddr_in server_addr, client_addr;
 	socklen_t client_addr_len = sizeof(client_addr);
 
@@ -182,11 +233,13 @@ int start_server(int port){
         return -1;
     }
 
+    signal(SIGINT, handle_sigint);
 	printf("Server listening on 0.0.0.0:%d\n", port);
 
-	while(1){
+	while(!stop_server){
 		int client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &client_addr_len);
 		if (client_socket < 0) {
+            if(stop_server) break;
             perror("Failed to accept connection");
             continue;
         }
