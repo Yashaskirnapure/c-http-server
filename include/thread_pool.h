@@ -1,0 +1,23 @@
+#ifndef THREAD_POOL_H
+#define THREAD_POOL_H
+
+#include <pthread.h>
+#include "task_queue.h"
+#include <stdbool.h>
+#include <stdatomic.h>
+
+#define MAX_THREADS 10
+
+typedef struct {
+	pthread_t worker_threads[MAX_THREADS];
+	int created_threads;
+	task_queue_t* queue;
+	atomic_bool stop;
+	pthread_mutex_t lock;
+} thread_pool_t;
+
+thread_pool_t* thread_pool_init();
+void thread_pool_destroy(thread_pool_t* thread_pool);
+void add_task(thread_pool_t* thread_pool, int socket);
+
+#endif
