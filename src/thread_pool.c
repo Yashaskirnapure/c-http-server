@@ -13,6 +13,10 @@ static void* worker_threads(void* args){
 		*socket = client_socket;
 		handle_client((void*)client_socket);
 	}
+	
+	pthread_mutex_lock(&thread_pool->lock);
+	thread_pool->created_threads--;
+	pthread_mutex_lock(&thread_pool->lock);
 
 	return NULL;
 }
@@ -28,29 +32,61 @@ thread_pool_t* thread_pool_init(){
 
 	for(int i = 0 ; i < MAX_THREADS ; i++){
 		int rv = pthread_create(&thread_pool->worker_threads[i], NULL, worker_threads, thread_pool);
-		if(rv == 0) thread_pool->created_threads++;
+		if(rv == 0){
+			pthread_detach(&thread_pool->worker_threads[i]);
+			thread_pool->created_threads++;
+		}
 		else break;
 	}
 
 	return thread_pool;
 }
 
-void add_task(thread_pool_t* thread_pool, int socket){
-	if(atomic_load(&thread_pool->stop)) return;
-	task_push(&thread_pool->queue, socket);
-}
-
 void thread_pool_destroy(thread_pool_t* thread_pool){
 	atomic_store(&thread_pool->stop, true);
-
 	pthread_cond_broadcast(&thread_pool->queue->not_empty);
-	pthread_cond_broadcast(&thread_pool->queue->not_full);
-
-	for(int i = 0 ; i < thread_pool->created_threads ; i++){
-		pthread_join(thread_pool->worker_threads[i], NULL);
-	}
-
 	pthread_mutex_destroy(&thread_pool->lock);
 	task_queue_destroy(thread_pool->queue);
 	free(thread_pool);
+}
+
+void task_push(thread_pool_t* pool, int socket){
+	task_queue_t* queue = pool->queue;
+	pthread_mutex_lock(&queue->mutex);
+
+	if (atomic_load(&pool->stop)) {
+		pthread_mutex_unlock(&queue->mutex);
+		return;
+	}
+
+	if(queue->first == NULL){
+		queue->first = create_task(socket);
+		queue->last = queue->first;
+	}else{
+		queue->last->next = create_task(socket);
+		queue->last = queue->last->next;
+	}
+
+	pthread_cond_signal(&queue->not_empty);
+	pthread_mutex_unlock(&queue->mutex);
+}
+
+int task_pop(thread_pool_t* pool){
+	task_queue_t* queue = pool->queue;
+	pthread_mutex_lock(&queue->mutex);
+	
+	while(queue->first == NULL && !pool->stop)
+		pthread_cond_wait(&queue->not_empty, &queue->mutex);
+	
+	if(atomic_load(&pool->stop)) {
+		pthread_mutex_unlock(&queue->mutex);
+		return -1;
+	}
+
+	task_node_t* task = queue->first;
+	queue->first = queue->first->next;
+	if(queue->first == NULL) queue->last = NULL;
+
+	pthread_mutex_unlock(&queue->mutex);
+	return task->socket;
 }

@@ -18,6 +18,7 @@ typedef struct {
 
 thread_pool_t* thread_pool_init();
 void thread_pool_destroy(thread_pool_t* thread_pool);
-void add_task(thread_pool_t* thread_pool, int socket);
+void task_push(thread_pool_t* pool, int socket);
+int task_pop(thread_pool_t* pool);
 
 #endif
