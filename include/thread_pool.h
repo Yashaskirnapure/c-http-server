@@ -5,12 +5,12 @@
 #include "task_queue.h"
 #include <stdbool.h>
 #include <stdatomic.h>
+#include <stdlib.h>
 
 #define MAX_THREADS 10
 
 typedef struct {
 	pthread_t worker_threads[MAX_THREADS];
-	int created_threads;
 	task_queue_t* queue;
 	atomic_bool stop;
 	pthread_mutex_t lock;

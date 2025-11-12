@@ -61,7 +61,7 @@ void handle_static_file(int client_socket, const char* path){
     while((n = read(fd, buffer, sizeof(buffer))) > 0){
         ssize_t total_sent = 0;
         while(total_sent < n){
-            ssize_t sent = send(client_socket, buffer, n, 0);
+            ssize_t sent = send(client_socket, buffer+total_sent, n-total_sent, 0);
             if(sent <= 0){
                 if(sent == 0) break;
                 else if(errno == EPIPE || errno == ECONNRESET) break;
@@ -251,7 +251,7 @@ int start_server(int port){
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         printf("New connection from %s:%d on %d\n", client_ip, ntohs(client_addr.sin_port), client_socket);
 
-        add_task(thread_pool, client_socket);
+        task_push(thread_pool, client_socket);
 	}
 
     thread_pool_destroy(thread_pool);

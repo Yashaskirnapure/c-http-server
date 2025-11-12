@@ -3,15 +3,16 @@
 
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
-#define MAX_QUEUE_SIZE 10
+typedef struct TaskNode task_node_t;
 
-typedef struct {
+typedef struct TaskNode {
 	int socket;
 	task_node_t* next;
 } task_node_t;
 
-typedef struct {
+typedef struct TaskQueue{
 	task_node_t* first;
 	task_node_t* last;
 	pthread_mutex_t mutex;
